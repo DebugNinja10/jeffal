@@ -5,7 +5,7 @@ from app.agents.intents import IntentName
 
 class SaleItemIntent(BaseModel):
     product_name: str
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
     unit: str | None = None
 
 

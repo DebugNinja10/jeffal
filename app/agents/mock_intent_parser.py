@@ -1,6 +1,5 @@
 import re
 
-from app.agents.intent_parser import IntentParser
 from app.agents.intents import IntentName
 from app.agents.schemas import (
     AgentUnderstanding,
@@ -12,37 +11,46 @@ from app.agents.schemas import (
 )
 
 
-class MockIntentParser(IntentParser):
+class MockIntentParser:
 
     def parse(self, text: str) -> AgentUnderstanding:
-        text = text.lower().strip()
+
+        text = text.strip().lower()
 
         # ============================================================
         # CONSULTATION DU STOCK
         # ============================================================
 
         stock_patterns = [
-            r"combien de (.+?)\s+il me reste",
-            r"il me reste combien de (.+)",
-            r"combien de (.+?)\s+reste",
-            r"quel est le stock de (.+)",
-            r"combien reste[- ]t[- ]il de (.+)",
+            r"(?:combien|quel)\s+(?:me\s+)?reste(?:-t-il)?\s+(?:de\s+)?(.+)",
+            r"stock\s+(?:de\s+)?(.+)",
+            r"(?:combien|quel)\s+(?:est\s+)?(?:le\s+)?stock\s+(?:de\s+)?(.+)",
+            r"j'ai\s+combien\s+(?:de\s+)?(.+)",
         ]
 
-        product_name = None
-
         for pattern in stock_patterns:
+
             match = re.search(pattern, text)
 
-            if match:
-                product_name = match.group(1).strip()
-                break
+            if not match:
+                continue
 
-        if product_name:
-            product_name = product_name.rstrip(" ?!.,;:")
+            product_name = match.group(1).strip()
+
+            product_name = product_name.rstrip(
+                " ?!.,;:"
+            )
+
+            if not product_name:
+                return AgentUnderstanding(
+                    intent=IntentName.CONSULTER_STOCK,
+                    data={},
+                    confidence=0.5,
+                    needs_clarification=True,
+                )
 
             stock_data = StockQueryIntentData(
-                product_name=product_name,
+                product_name=product_name
             )
 
             return AgentUnderstanding(
@@ -53,25 +61,89 @@ class MockIntentParser(IntentParser):
             )
 
         # ============================================================
-        # NOUVELLE DETTE
+        # REMBOURSEMENT DE DETTE
         # ============================================================
 
-        debt_match = re.search(
-            r"^(.+?)\s+me\s+doit\s+(\d+(?:[.,]\d+)?)",
-            text,
-        )
+        repayment_patterns = [
+            r"(?:j'ai\s+)?remboursé\s+([0-9]+(?:[.,][0-9]+)?)\s+(?:à|a)\s+(.+)",
+            r"(?:j'ai\s+)?payé\s+([0-9]+(?:[.,][0-9]+)?)\s+(?:à|a)\s+(.+)",
+        ]
 
-        if debt_match:
-            customer_name = debt_match.group(1).strip()
+        for pattern in repayment_patterns:
+
+            match = re.search(pattern, text)
+
+            if not match:
+                continue
 
             amount = float(
-                debt_match.group(2).replace(",", ".")
+                match.group(1).replace(",", ".")
             )
+
+            customer_name = match.group(2).strip()
+
+            customer_name = customer_name.rstrip(
+                " ?!.,;:"
+            )
+
+            if not customer_name:
+                return AgentUnderstanding(
+                    intent=IntentName.ENREGISTRER_REMBOURSEMENT,
+                    data={},
+                    confidence=0.5,
+                    needs_clarification=True,
+                )
+
+            repayment_data = DebtPaymentIntentData(
+                customer_name=customer_name,
+                amount=amount,
+            )
+
+            return AgentUnderstanding(
+                intent=IntentName.ENREGISTRER_REMBOURSEMENT,
+                data=repayment_data.model_dump(),
+                confidence=0.90,
+                needs_clarification=False,
+            )
+
+        # ============================================================
+        # DETTE
+        # ============================================================
+
+        debt_patterns = [
+            r"(?:dette|doit)\s+(.+?)\s+([0-9]+(?:[.,][0-9]+)?)",
+            r"(.+?)\s+(?:me\s+)?doit\s+([0-9]+(?:[.,][0-9]+)?)",
+        ]
+
+        for pattern in debt_patterns:
+
+            match = re.search(pattern, text)
+
+            if not match:
+                continue
+
+            customer_name = match.group(1).strip()
+
+            amount = float(
+                match.group(2).replace(",", ".")
+            )
+
+            customer_name = customer_name.rstrip(
+                " ?!.,;:"
+            )
+
+            if not customer_name:
+                return AgentUnderstanding(
+                    intent=IntentName.ENREGISTRER_DETTE,
+                    data={},
+                    confidence=0.5,
+                    needs_clarification=True,
+                )
 
             debt_data = DebtIntentData(
                 customer_name=customer_name,
                 amount=amount,
-                description="Dette enregistrée par l'agent",
+                description=None,
             )
 
             return AgentUnderstanding(
@@ -82,115 +154,36 @@ class MockIntentParser(IntentParser):
             )
 
         # ============================================================
-        # REMBOURSEMENT
+        # DEPENSE
         # ============================================================
 
-        if (
-            "remboursé" in text
-            or "rembourse" in text
-        ):
-            match = re.search(
-                r"\d+(?:[.,]\d+)?",
-                text,
-            )
+        expense_patterns = [
+            r"(?:j'ai\s+)?dépensé\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:fcfa|f|francs)?\s*(.*)",
+            r"(?:j'ai\s+)?payé\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:fcfa|f|francs)?\s*(.*)",
+            r"dépense\s+([0-9]+(?:[.,][0-9]+)?)\s*(?:fcfa|f|francs)?\s*(.*)",
+        ]
+
+        for pattern in expense_patterns:
+
+            match = re.search(pattern, text)
 
             if not match:
-                return AgentUnderstanding(
-                    intent=IntentName.ENREGISTRER_REMBOURSEMENT,
-                    data={},
-                    confidence=0.5,
-                    needs_clarification=True,
-                )
+                continue
 
             amount = float(
-                match.group().replace(",", ".")
+                match.group(1).replace(",", ".")
             )
 
-            customer_match = re.search(
-                r"(?:à|a)\s+([a-zà-ÿ'-]+(?:\s+[a-zà-ÿ'-]+)*)",
-                text,
+            description = match.group(2).strip()
+
+            description = description.rstrip(
+                " ?!.,;:"
             )
-
-            if not customer_match:
-                return AgentUnderstanding(
-                    intent=IntentName.ENREGISTRER_REMBOURSEMENT,
-                    data={},
-                    confidence=0.5,
-                    needs_clarification=True,
-                )
-
-            customer_name = customer_match.group(1).strip()
-
-            payment_data = DebtPaymentIntentData(
-                customer_name=customer_name,
-                amount=amount,
-            )
-
-            return AgentUnderstanding(
-                intent=IntentName.ENREGISTRER_REMBOURSEMENT,
-                data=payment_data.model_dump(),
-                confidence=0.90,
-                needs_clarification=False,
-            )
-
-        # ============================================================
-        # DÉPENSE
-        # ============================================================
-
-        if (
-            "dépensé" in text
-            or "depense" in text
-            or "dépense" in text
-        ):
-            match = re.search(
-                r"\d+(?:[.,]\d+)?",
-                text,
-            )
-
-            if not match:
-                return AgentUnderstanding(
-                    intent=IntentName.ENREGISTRER_DEPENSE,
-                    data={},
-                    confidence=0.5,
-                    needs_clarification=True,
-                )
-
-            amount = float(
-                match.group().replace(",", ".")
-            )
-
-            if "transport" in text:
-                category = "transport"
-
-            elif (
-                "sac" in text
-                or "emballage" in text
-            ):
-                category = "emballage"
-
-            elif (
-                "marchandise" in text
-                or "achat" in text
-                or "approvisionnement" in text
-            ):
-                category = "approvisionnement"
-
-            elif "loyer" in text:
-                category = "loyer"
-
-            elif (
-                "électricité" in text
-                or "courant" in text
-            ):
-                category = "électricité"
-
-            else:
-                category = "autre"
 
             expense_data = ExpenseIntentData(
                 amount=amount,
-                category=category,
-                description=category,
+                category=None,
+                description=description or None,
             )
 
             return AgentUnderstanding(
@@ -207,15 +200,15 @@ class MockIntentParser(IntentParser):
         sale_patterns = [
             # Exemple :
             # "j'ai vendu 2 sacs de riz"
-            r"(?:j'ai\s+)?vendu\s+(\d+)\s+(?:sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)\s+(?:de\s+)?(.+)",
+            r"(?:j'ai\s+)?vendu\s+([0-9]+(?:[.,][0-9]+)?)\s+(?:sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)\s+(?:de\s+)?(.+)",
 
             # Exemple :
             # "j'ai vendu 2 riz"
-            r"(?:j'ai\s+)?vendu\s+(\d+)\s+(.+)",
+            r"(?:j'ai\s+)?vendu\s+([0-9]+(?:[.,][0-9]+)?)\s+(.+)",
 
             # Exemple Wolof :
             # "mun naa ceeb 2 kilos"
-            r"(?:mun naa|maa ngi)\s+(.+?)\s+(\d+)\s+(kilo|kilos|kg|sac|sacs|litre|litres)",
+            r"(?:mun naa|maa ngi)\s+(.+?)\s+([0-9]+(?:[.,][0-9]+)?)\s+(kilo|kilos|kg|sac|sacs|litre|litres)",
         ]
 
         for index, pattern in enumerate(sale_patterns):
@@ -226,26 +219,38 @@ class MockIntentParser(IntentParser):
                 continue
 
             if index == 2:
+
                 # Format Wolof :
                 # produit + quantité + unité
+
                 product_name = match.group(1).strip()
-                quantity = int(match.group(2))
+
+                quantity = float(
+                    match.group(2).replace(",", ".")
+                )
+
                 unit = match.group(3)
 
             else:
+
                 # Format français :
                 # quantité + unité + produit
-                quantity = int(match.group(1))
+
+                quantity = float(
+                    match.group(1).replace(",", ".")
+                )
 
                 if index == 0:
+
                     unit = re.search(
-                        r"\d+\s+(sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)",
+                        r"[0-9]+(?:[.,][0-9]+)?\s+(sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)",
                         match.group(0),
                     ).group(1)
 
                     product_name = match.group(2).strip()
 
                 else:
+
                     product_name = match.group(2).strip()
                     unit = None
 
@@ -254,6 +259,7 @@ class MockIntentParser(IntentParser):
             )
 
             if not product_name:
+
                 return AgentUnderstanding(
                     intent=IntentName.ENREGISTRER_VENTE,
                     data={},

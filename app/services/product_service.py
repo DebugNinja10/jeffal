@@ -93,7 +93,13 @@ def find_business_product_by_name(
 
     original_name = product_name.strip()
 
-    # 1. Recherche exacte.
+    if not original_name:
+        return None
+
+    # ============================================================
+    # 1. RECHERCHE EXACTE
+    # ============================================================
+
     product = (
         db.query(Product)
         .filter(
@@ -106,16 +112,18 @@ def find_business_product_by_name(
     if product is not None:
         return product
 
-    # 2. Normalisation / alias.
+    # ============================================================
+    # 2. NORMALISATION / ALIAS
+    # ============================================================
+
     normalized_name = normalize_product_name(
         original_name
     )
 
-    # Si aucun alias n'a été trouvé.
-    if normalized_name == original_name.lower():
-        return None
+    # ============================================================
+    # 3. COMPARAISON AVEC LES PRODUITS EXISTANTS
+    # ============================================================
 
-    # 3. Comparaison avec les produits existants.
     products = (
         db.query(Product)
         .filter(
@@ -130,11 +138,18 @@ def find_business_product_by_name(
             product.name
         )
 
-        if product_normalized == normalized_name:
-            return product
+        # Exemple :
+        # utilisateur → "riz"
+        # produit     → "Riz 25 kg"
+        #
+        # normalize("riz")      = "riz"
+        # normalize("Riz 25 kg") = "riz 25 kg"
 
-        if product_normalized.startswith(
-            normalized_name + " "
+        if (
+            product_normalized == normalized_name
+            or product_normalized.startswith(
+                normalized_name + " "
+            )
         ):
             return product
 

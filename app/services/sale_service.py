@@ -6,7 +6,10 @@ from app.models.product import Product
 from app.models.sale import Sale
 from app.models.sale_item import SaleItem
 from app.schemas.sale import SaleCreate
-from app.services.unit_service import convert_to_base_unit
+from app.services.unit_service import (
+    convert_to_base_unit,
+    normalize_unit,
+)
 
 
 def create_sale(
@@ -15,8 +18,11 @@ def create_sale(
     sale_data: SaleCreate,
 ) -> Sale:
 
+    # ============================================================
     # 1. Vérifier que tous les produits appartiennent
     #    à l'activité concernée.
+    # ============================================================
+
     product_ids = [
         item.product_id
         for item in sale_data.items
@@ -42,18 +48,35 @@ def create_sale(
             "n'appartiennent pas à cette activité."
         )
 
+    # ============================================================
     # 2. Préparer les lignes de vente et vérifier le stock.
+    # ============================================================
+
     sale_lines = []
 
     for item in sale_data.items:
+
         product = products_by_id[item.product_id]
 
-        sold_unit = item.unit.strip().lower()
+        # Normaliser les unités avant toute comparaison.
+        sold_unit = normalize_unit(item.unit)
+        product_unit = normalize_unit(product.unit)
+
+        base_unit = (
+            normalize_unit(product.base_unit)
+            if product.base_unit is not None
+            else None
+        )
+
+        # --------------------------------------------------------
+        # Prix de vente
+        # --------------------------------------------------------
 
         # Si l'unité vendue est l'unité commerciale
         # du produit (ex: sac), on utilise le prix
         # commercial du produit.
-        if sold_unit == product.unit.strip().lower():
+        if sold_unit == product_unit:
+
             unit_price = Decimal(
                 str(product.selling_price)
             )
@@ -62,9 +85,10 @@ def create_sale(
         # l'unité de base (ex: kg), on calcule
         # automatiquement le prix correspondant.
         elif (
-            product.base_unit is not None
-            and sold_unit == product.base_unit.strip().lower()
+            base_unit is not None
+            and sold_unit == base_unit
         ):
+
             if (
                 product.package_size is None
                 or product.package_size <= 0
@@ -80,15 +104,19 @@ def create_sale(
             )
 
         else:
+
             raise ValueError(
                 f"Unité '{item.unit}' non compatible "
                 f"avec le produit '{product.name}'."
             )
 
-        # Convertir la quantité vendue vers
-        # l'unité de base du stock.
+        # --------------------------------------------------------
+        # Conversion vers l'unité de base du stock
+        # --------------------------------------------------------
+
         if product.base_unit is None:
-            if sold_unit != product.unit.strip().lower():
+
+            if sold_unit != product_unit:
                 raise ValueError(
                     f"Le produit '{product.name}' "
                     f"ne possède pas d'unité de base."
@@ -97,10 +125,11 @@ def create_sale(
             stock_quantity = float(item.quantity)
 
         else:
+
             stock_quantity = convert_to_base_unit(
                 quantity=float(item.quantity),
                 sold_unit=sold_unit,
-                base_unit=product.base_unit,
+                base_unit=base_unit,
                 package_size=(
                     float(product.package_size)
                     if product.package_size is not None
@@ -108,7 +137,12 @@ def create_sale(
                 ),
             )
 
+        # --------------------------------------------------------
+        # Vérification du stock
+        # --------------------------------------------------------
+
         if stock_quantity > float(product.stock_quantity):
+
             raise ValueError(
                 f"Stock insuffisant pour "
                 f"'{product.name}'. "
@@ -119,6 +153,10 @@ def create_sale(
                 f"{stock_quantity} "
                 f"{product.base_unit or product.unit}."
             )
+
+        # --------------------------------------------------------
+        # Calcul du sous-total
+        # --------------------------------------------------------
 
         subtotal = (
             unit_price
@@ -135,7 +173,10 @@ def create_sale(
             }
         )
 
-    # 3. Créer la vente.
+    # ============================================================
+    # 3. Créer la vente
+    # ============================================================
+
     sale = Sale(
         business_id=business_id,
         total_amount=Decimal("0.00"),
@@ -144,11 +185,14 @@ def create_sale(
 
     db.add(sale)
 
-    # 4. Créer les lignes de vente et mettre
-    #    à jour le stock.
+    # ============================================================
+    # 4. Créer les lignes et mettre à jour le stock
+    # ============================================================
+
     total_amount = Decimal("0.00")
 
     for line in sale_lines:
+
         item = line["item"]
         product = line["product"]
         unit_price = line["unit_price"]
@@ -174,15 +218,23 @@ def create_sale(
 
         total_amount += subtotal
 
-    # 5. Enregistrer le total.
+    # ============================================================
+    # 5. Enregistrer le total
+    # ============================================================
+
     sale.total_amount = total_amount
 
-    # 6. Une seule transaction PostgreSQL.
+    # ============================================================
+    # 6. Une seule transaction PostgreSQL
+    # ============================================================
+
     try:
+
         db.commit()
         db.refresh(sale)
 
     except Exception:
+
         db.rollback()
         raise
 

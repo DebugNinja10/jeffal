@@ -1,3 +1,47 @@
+UNIT_ALIASES = {
+    "kg": "kg",
+    "kilo": "kg",
+    "kilos": "kg",
+    "kilogramme": "kg",
+    "kilogrammes": "kg",
+
+    "g": "g",
+    "gramme": "g",
+    "grammes": "g",
+
+    "l": "litre",
+    "litre": "litre",
+    "litres": "litre",
+
+    "sac": "sac",
+    "sacs": "sac",
+
+    "unité": "unité",
+    "unités": "unité",
+    "unite": "unité",
+    "unites": "unité",
+}
+
+
+def normalize_unit(unit: str) -> str:
+    """
+    Normalise une unité exprimée naturellement par l'utilisateur.
+
+    Exemples :
+    kilo -> kg
+    kilos -> kg
+    sacs -> sac
+    litres -> litre
+    """
+
+    normalized = unit.strip().lower()
+
+    return UNIT_ALIASES.get(
+        normalized,
+        normalized,
+    )
+
+
 def convert_to_base_unit(
     quantity: float,
     sold_unit: str,
@@ -10,10 +54,16 @@ def convert_to_base_unit(
     Exemple :
     1 sac de riz avec package_size=25 et base_unit=kg
     devient 25 kg.
+
+    Les variantes naturelles d'une unité sont d'abord
+    normalisées.
+
+    Exemple :
+    0,5 kilo -> 0,5 kg
     """
 
-    sold_unit = sold_unit.strip().lower()
-    base_unit = base_unit.strip().lower()
+    sold_unit = normalize_unit(sold_unit)
+    base_unit = normalize_unit(base_unit)
 
     if quantity <= 0:
         raise ValueError(
