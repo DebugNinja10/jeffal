@@ -54,6 +54,26 @@ def get_business_debts(
         .all()
     )
 
+def find_business_debt_by_customer_name(
+    db: Session,
+    business_id: int,
+    customer_name: str,
+) -> Debt | None:
+
+    return (
+        db.query(Debt)
+        .filter(
+            Debt.business_id == business_id,
+            Debt.customer_name.ilike(
+                customer_name.strip()
+            ),
+            Debt.remaining_amount > 0,
+        )
+        .order_by(
+            Debt.created_at.desc()
+        )
+        .first()
+    )
 
 def add_debt_payment(
     db: Session,

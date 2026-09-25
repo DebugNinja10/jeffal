@@ -5,7 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class SaleItemCreate(BaseModel):
     product_id: int
-    quantity: int = Field(gt=0)
+    quantity: float = Field(gt=0)
+    unit: str = "unité"
 
 
 class SaleCreate(BaseModel):
@@ -16,13 +17,12 @@ class SaleCreate(BaseModel):
 class SaleItemResponse(BaseModel):
     id: int
     product_id: int
-    quantity: int
+    quantity: float
+    unit: str
     unit_price: float
     subtotal: float
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleResponse(BaseModel):
@@ -34,6 +34,4 @@ class SaleResponse(BaseModel):
     created_at: datetime
     items: list[SaleItemResponse]
 
-    model_config = ConfigDict(
-        from_attributes=True
-    )
+    model_config = ConfigDict(from_attributes=True)

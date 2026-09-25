@@ -3,15 +3,39 @@ from sqlalchemy.orm import Session
 from app.models.product import Product
 
 
+# Alias de produits utilisés naturellement par les utilisateurs.
+# Cette liste pourra être enrichie progressivement.
+PRODUCT_ALIASES = {
+    "ceeb": "riz",
+    "riz": "riz",
+    "suukar": "sucre",
+    "sucre": "sucre",
+    "meew": "lait",
+    "lait": "lait",
+}
+
+
+def normalize_product_name(product_name: str) -> str:
+    """
+    Normalise un nom de produit avant sa recherche.
+    """
+
+    name = product_name.strip().lower()
+
+    return PRODUCT_ALIASES.get(name, name)
+
+
 def create_product(
     db: Session,
     business_id: int,
     name: str,
     category: str | None,
     unit: str,
+    base_unit: str | None,
+    package_size: float | None,
     purchase_price: float,
     selling_price: float,
-    stock_quantity: int,
+    stock_quantity: float,
 ) -> Product:
 
     product = Product(
@@ -19,6 +43,8 @@ def create_product(
         name=name,
         category=category,
         unit=unit,
+        base_unit=base_unit,
+        package_size=package_size,
         purchase_price=purchase_price,
         selling_price=selling_price,
         stock_quantity=stock_quantity,
@@ -59,15 +85,73 @@ def get_business_product(
     )
 
 
+def find_business_product_by_name(
+    db: Session,
+    product_name: str,
+    business_id: int,
+) -> Product | None:
+
+    original_name = product_name.strip()
+
+    # 1. Recherche exacte.
+    product = (
+        db.query(Product)
+        .filter(
+            Product.business_id == business_id,
+            Product.name.ilike(original_name),
+        )
+        .first()
+    )
+
+    if product is not None:
+        return product
+
+    # 2. Normalisation / alias.
+    normalized_name = normalize_product_name(
+        original_name
+    )
+
+    # Si aucun alias n'a été trouvé.
+    if normalized_name == original_name.lower():
+        return None
+
+    # 3. Comparaison avec les produits existants.
+    products = (
+        db.query(Product)
+        .filter(
+            Product.business_id == business_id
+        )
+        .all()
+    )
+
+    for product in products:
+
+        product_normalized = normalize_product_name(
+            product.name
+        )
+
+        if product_normalized == normalized_name:
+            return product
+
+        if product_normalized.startswith(
+            normalized_name + " "
+        ):
+            return product
+
+    return None
+
+
 def update_product(
     db: Session,
     product: Product,
     name: str | None = None,
     category: str | None = None,
     unit: str | None = None,
+    base_unit: str | None = None,
+    package_size: float | None = None,
     purchase_price: float | None = None,
     selling_price: float | None = None,
-    stock_quantity: int | None = None,
+    stock_quantity: float | None = None,
 ) -> Product:
 
     if name is not None:
@@ -78,6 +162,12 @@ def update_product(
 
     if unit is not None:
         product.unit = unit
+
+    if base_unit is not None:
+        product.base_unit = base_unit
+
+    if package_size is not None:
+        product.package_size = package_size
 
     if purchase_price is not None:
         product.purchase_price = purchase_price

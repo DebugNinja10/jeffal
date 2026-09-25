@@ -14,3 +14,8 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# Fichiers locaux de test et sauvegarde
+jeffal_backup_before_units.sql
+test.wav
+test_asr.py

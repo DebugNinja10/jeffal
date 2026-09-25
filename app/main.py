@@ -8,6 +8,8 @@ from app.routers.sale import router as sale_router
 from app.routers.expense import router as expense_router
 from app.routers.summary import router as summary_router
 from app.routers.debt import router as debt_router
+from app.routers.agent import router as agent_router
+from app.routers.voice import router as voice_router
 
 app = FastAPI(
     title="JËFAL API",
@@ -24,3 +26,5 @@ app.include_router(sale_router)
 app.include_router(expense_router)
 app.include_router(summary_router)
 app.include_router(debt_router)
+app.include_router(agent_router)
+app.include_router(voice_router)

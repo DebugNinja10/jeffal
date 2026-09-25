@@ -49,15 +49,17 @@ def create_product_route(
         )
 
     return create_product(
-        db=db,
-        business_id=business.id,
-        name=product_data.name,
-        category=product_data.category,
-        unit=product_data.unit,
-        purchase_price=product_data.purchase_price,
-        selling_price=product_data.selling_price,
-        stock_quantity=product_data.stock_quantity,
-    )
+    db=db,
+    business_id=business.id,
+    name=product_data.name,
+    category=product_data.category,
+    unit=product_data.unit,
+    base_unit=product_data.base_unit,
+    package_size=product_data.package_size,
+    purchase_price=product_data.purchase_price,
+    selling_price=product_data.selling_price,
+    stock_quantity=product_data.stock_quantity,
+)
 
 
 @router.get(
@@ -165,6 +167,8 @@ def update_product_route(
         name=product_data.name,
         category=product_data.category,
         unit=product_data.unit,
+        base_unit=product_data.base_unit,
+        package_size=product_data.package_size,
         purchase_price=product_data.purchase_price,
         selling_price=product_data.selling_price,
         stock_quantity=product_data.stock_quantity,

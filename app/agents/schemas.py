@@ -14,6 +14,27 @@ class SaleIntentData(BaseModel):
     payment_method: str | None = None
 
 
+class ExpenseIntentData(BaseModel):
+    amount: float = Field(gt=0)
+    category: str | None = None
+    description: str | None = None
+
+
+class DebtIntentData(BaseModel):
+    customer_name: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    description: str | None = None
+
+
+class DebtPaymentIntentData(BaseModel):
+    customer_name: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+
+
+class StockQueryIntentData(BaseModel):
+    product_name: str = Field(min_length=1)
+
+
 class AgentUnderstanding(BaseModel):
     intent: IntentName
     data: dict

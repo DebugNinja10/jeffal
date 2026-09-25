@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, Numeric
+from sqlalchemy import ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -7,9 +7,7 @@ from app.database.base import Base
 class SaleItem(Base):
     __tablename__ = "sale_items"
 
-    id: Mapped[int] = mapped_column(
-        primary_key=True
-    )
+    id: Mapped[int] = mapped_column(primary_key=True)
 
     sale_id: Mapped[int] = mapped_column(
         ForeignKey("sales.id"),
@@ -23,9 +21,17 @@ class SaleItem(Base):
         index=True,
     )
 
-    quantity: Mapped[int] = mapped_column(
-        Integer,
+    quantity: Mapped[float] = mapped_column(
+        Numeric(12, 3),
         nullable=False,
+    )
+
+    # Unité réellement vendue.
+    # Exemple : sac, kg, litre, unité.
+    unit: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="unité",
     )
 
     unit_price: Mapped[float] = mapped_column(
@@ -43,6 +49,4 @@ class SaleItem(Base):
         back_populates="items",
     )
 
-    product = relationship(
-        "Product",
-    )
+    product = relationship("Product")
