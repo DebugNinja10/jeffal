@@ -129,11 +129,27 @@ def execute_voice_agent(
             understanding.intent.value
             == "consulter_stock"
         ):
+            quantity = float(result["stock_quantity"])
+            unit = result["unit"]
+            product_name = result["product_name"]
+
+            if quantity == 1:
+                quantity_text = "1"
+                unit_text = unit.rstrip("s")
+            else:
+                quantity_text = f"{quantity:g}"
+                unit_text = unit if unit.endswith("s") else f"{unit}s"
+
+            if product_name[0].lower() in "aeiouh":
+                product_text = f"d’{product_name}"
+            else:
+                product_text = f"de {product_name}"
+
             message = (
                 f"Il vous reste "
-                f"{result['stock_quantity']} "
-                f"{result['unit']}"
-                f" de {result['product_name']}."
+                f"{quantity_text} "
+                f"{unit_text} "
+                f"{product_text}."
             )
         else:
             message = (

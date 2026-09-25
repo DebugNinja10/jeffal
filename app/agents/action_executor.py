@@ -81,18 +81,20 @@ class ActionExecutor:
             )
 
             if product is None:
-                raise ValueError(
-                    f"Produit introuvable : "
-                    f"'{item['product_name']}'."
-                )
+                return {
+                    "needs_clarification": True,
+                    "reason": "product_not_found",
+                    "product_name": item["product_name"],
+                    "pending_items": items,
+                }
 
             sale_items.append(
-    SaleItemCreate(
-        product_id=product.id,
-        quantity=item["quantity"],
-        unit=item.get("unit") or product.unit,
-    )
-)
+                SaleItemCreate(
+                    product_id=product.id,
+                    quantity=item["quantity"],
+                    unit=item.get("unit") or product.unit,
+                )
+            )
 
         sale_data = SaleCreate(
             payment_method=(
@@ -250,9 +252,20 @@ class ActionExecutor:
                 f"'{product_name}'."
             )
 
+        stock_quantity = float(product.stock_quantity)
+
+        if (
+            product.base_unit is not None
+            and product.package_size is not None
+            and product.package_size > 0
+        ):
+            stock_quantity = stock_quantity / float(
+                product.package_size
+            )
+
         return {
             "product_id": product.id,
             "product_name": product.name,
-            "stock_quantity": product.stock_quantity,
+            "stock_quantity": stock_quantity,
             "unit": product.unit,
         }

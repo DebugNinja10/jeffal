@@ -22,6 +22,25 @@ def normalize_product_name(product_name: str) -> str:
 
     name = product_name.strip().lower()
 
+    name = name.rstrip(" ?!.,;:")
+
+    for prefix in (
+        "de l'",
+        "de la ",
+        "de le ",
+        "du ",
+        "de ",
+        "d'",
+        "l'",
+        "la ",
+        "le ",
+        "les ",
+        "des ",
+    ):
+        if name.startswith(prefix):
+            name = name[len(prefix):].strip()
+            break
+
     return PRODUCT_ALIASES.get(name, name)
 
 

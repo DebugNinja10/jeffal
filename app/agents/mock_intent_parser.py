@@ -15,7 +15,7 @@ class MockIntentParser:
 
     def parse(self, text: str) -> AgentUnderstanding:
 
-        text = text.strip().lower()
+        text = text.strip().lower().replace("’", "'")
 
         # ============================================================
         # CONSULTATION DU STOCK
@@ -198,15 +198,15 @@ class MockIntentParser:
         # ============================================================
 
         sale_patterns = [
-            # Exemple :
+            # Français :
             # "j'ai vendu 2 sacs de riz"
-            r"(?:j'ai\s+)?vendu\s+([0-9]+(?:[.,][0-9]+)?)\s+(?:sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)\s+(?:de\s+)?(.+)",
+            r"(?:j'ai\s+)?vendu\s+([0-9]+(?:[.,][0-9]+)?)\s+(sacs?|kg|kilos?|litres?|unités?|bidons?)\s+(?:de\s+)?(?:l'|la\s+|le\s+|du\s+|des\s+)?(.+)",
 
-            # Exemple :
+            # Français :
             # "j'ai vendu 2 riz"
             r"(?:j'ai\s+)?vendu\s+([0-9]+(?:[.,][0-9]+)?)\s+(.+)",
 
-            # Exemple Wolof :
+            # Wolof :
             # "mun naa ceeb 2 kilos"
             r"(?:mun naa|maa ngi)\s+(.+?)\s+([0-9]+(?:[.,][0-9]+)?)\s+(kilo|kilos|kg|sac|sacs|litre|litres)",
         ]
@@ -218,10 +218,115 @@ class MockIntentParser:
             if not match:
                 continue
 
-            if index == 2:
+            # --------------------------------------------------------
+            # Trouver tous les blocs séparés par " et "
+            # --------------------------------------------------------
 
-                # Format Wolof :
-                # produit + quantité + unité
+            if index in (0, 1):
+
+                prefix_match = re.match(
+                    r"(?:j'ai\s+)?vendu\s+",
+                    text,
+                )
+
+                if prefix_match is None:
+                    continue
+
+                sale_text = text[prefix_match.end():]
+
+                parts = re.split(
+                    r"\s+et\s+",
+                    sale_text,
+                )
+
+                items = []
+
+                valid = True
+
+                for part in parts:
+
+                    part = part.strip()
+
+                    if not part:
+                        valid = False
+                        break
+
+                    if index == 0:
+
+                        item_match = re.fullmatch(
+                            r"([0-9]+(?:[.,][0-9]+)?)\s+"
+                            r"(sacs?|kg|kilos?|litres?|unités?|bidons?)\s+"
+                            r"(?:de\s+(?:l'|la\s+|le\s+|du\s+|des\s+)?|d')?"
+                            r"(.+)",
+                            part,
+                        )
+
+                        if item_match is None:
+                            valid = False
+                            break
+
+                        quantity = float(
+                            item_match.group(1).replace(",", ".")
+                        )
+
+                        unit = item_match.group(2)
+
+                        product_name = item_match.group(3).strip()
+
+                    else:
+
+                        item_match = re.fullmatch(
+                            r"([0-9]+(?:[.,][0-9]+)?)\s+(.+)",
+                            part,
+                        )
+
+                        if item_match is None:
+                            valid = False
+                            break
+
+                        quantity = float(
+                            item_match.group(1).replace(",", ".")
+                        )
+
+                        product_name = item_match.group(2).strip()
+                        unit = None
+
+                    product_name = product_name.rstrip(
+                        " ?!.,;:"
+                    )
+
+                    if not product_name:
+                        valid = False
+                        break
+
+                    items.append(
+                        {
+                            "product_name": product_name,
+                            "quantity": quantity,
+                            "unit": unit,
+                        }
+                    )
+
+                if not valid or not items:
+                    continue
+
+                sale_data = SaleIntentData(
+                    items=items,
+                    payment_method=None,
+                )
+
+                return AgentUnderstanding(
+                    intent=IntentName.ENREGISTRER_VENTE,
+                    data=sale_data.model_dump(),
+                    confidence=0.90,
+                    needs_clarification=False,
+                )
+
+            # --------------------------------------------------------
+            # Format Wolof
+            # --------------------------------------------------------
+
+            else:
 
                 product_name = match.group(1).strip()
 
@@ -231,59 +336,36 @@ class MockIntentParser:
 
                 unit = match.group(3)
 
-            else:
-
-                # Format français :
-                # quantité + unité + produit
-
-                quantity = float(
-                    match.group(1).replace(",", ".")
+                product_name = product_name.rstrip(
+                    " ?!.,;:"
                 )
 
-                if index == 0:
+                if not product_name:
 
-                    unit = re.search(
-                        r"[0-9]+(?:[.,][0-9]+)?\s+(sac|sacs|kg|kilo|kilos|litre|litres|unité|unités)",
-                        match.group(0),
-                    ).group(1)
+                    return AgentUnderstanding(
+                        intent=IntentName.ENREGISTRER_VENTE,
+                        data={},
+                        confidence=0.5,
+                        needs_clarification=True,
+                    )
 
-                    product_name = match.group(2).strip()
-
-                else:
-
-                    product_name = match.group(2).strip()
-                    unit = None
-
-            product_name = product_name.rstrip(
-                " ?!.,;:"
-            )
-
-            if not product_name:
+                sale_data = SaleIntentData(
+                    items=[
+                        {
+                            "product_name": product_name,
+                            "quantity": quantity,
+                            "unit": unit,
+                        }
+                    ],
+                    payment_method=None,
+                )
 
                 return AgentUnderstanding(
                     intent=IntentName.ENREGISTRER_VENTE,
-                    data={},
-                    confidence=0.5,
-                    needs_clarification=True,
+                    data=sale_data.model_dump(),
+                    confidence=0.90,
+                    needs_clarification=False,
                 )
-
-            sale_data = SaleIntentData(
-                items=[
-                    {
-                        "product_name": product_name,
-                        "quantity": quantity,
-                        "unit": unit,
-                    }
-                ],
-                payment_method=None,
-            )
-
-            return AgentUnderstanding(
-                intent=IntentName.ENREGISTRER_VENTE,
-                data=sale_data.model_dump(),
-                confidence=0.90,
-                needs_clarification=False,
-            )
 
         # ============================================================
         # INTENT INCONNUE

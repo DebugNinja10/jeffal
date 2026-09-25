@@ -15,6 +15,8 @@ UNIT_ALIASES = {
 
     "sac": "sac",
     "sacs": "sac",
+    "bidon": "bidon",
+    "bidons": "bidon",
 
     "unité": "unité",
     "unités": "unité",
