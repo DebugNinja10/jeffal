@@ -19,3 +19,17 @@ __pycache__/
 jeffal_backup_before_units.sql
 test.wav
 test_asr.py
+
+# Modèle Kiriku TTS local
+kiriku_tts/
+
+# Serveur TTS local
+__pycache__/
+tts_service/__pycache__/
+
+# Fichiers audio de test
+*.wav
+
+# Fichiers de sauvegarde
+*.bak
+*.backup

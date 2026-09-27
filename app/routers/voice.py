@@ -19,6 +19,7 @@ from app.database.dependencies import get_db
 from app.models.user import User
 from app.services.asr_service import ASRService
 from app.services.business_service import get_user_business
+from app.services.tts_service import TTSService
 
 
 router = APIRouter(
@@ -34,6 +35,17 @@ agent_service = AgentService(
 )
 
 action_executor = ActionExecutor()
+tts_service = TTSService()
+
+
+@router.post("/tts")
+def voice_tts(text: str):
+    text = text.strip().lower()
+    if not text:
+        raise HTTPException(status_code=422, detail="Le texte ne peut pas être vide.")
+    audio = tts_service.synthesize(text)
+    from fastapi.responses import Response
+    return Response(content=audio, media_type="audio/wav", headers={"Content-Disposition": 'inline; filename="response.wav"'})
 
 
 @router.post("/execute")

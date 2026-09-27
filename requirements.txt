@@ -48,3 +48,6 @@ uvicorn==0.53.0
 uvloop==0.22.1
 watchfiles==1.2.0
 websockets==17.1
+torch==2.14.0+cu130
+transformers==5.17.0
+librosa==1.0.0
