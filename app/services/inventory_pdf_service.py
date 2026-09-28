@@ -1,4 +1,5 @@
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -33,7 +34,7 @@ def generate_inventory_pdf(
 
     story.append(
         Paragraph(
-            f"<b>{business.name}</b>",
+            f"<b>{escape(business.name)}</b>",
             styles["Title"],
         )
     )
@@ -57,7 +58,7 @@ def generate_inventory_pdf(
 
     story.append(
         Paragraph(
-            inventory["period_label"],
+            escape(inventory["period_label"]),
             styles["Normal"],
         )
     )
@@ -77,7 +78,7 @@ def generate_inventory_pdf(
     for item in inventory["items"]:
         data.append(
             [
-                item["product_name"],
+                escape(item["product_name"]),
                 f'{item["stock_quantity"]:.3f} '
                 f'{item["stock_unit"]}',
                 f'{item["quantity_sold"]:.3f}',
@@ -243,7 +244,7 @@ def generate_inventory_pdf(
     story.append(
         Paragraph(
             f"Document généré par JËFAL — "
-            f"{business.name}",
+            f"{escape(business.name)}",
             styles["Normal"],
         )
     )

@@ -4,14 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SaleItemCreate(BaseModel):
-    product_id: int
+    product_id: int = Field(gt=0)
     quantity: float = Field(gt=0)
     unit: str = "unité"
 
 
 class SaleCreate(BaseModel):
-    payment_method: str
-    items: list[SaleItemCreate] = Field(min_length=1)
+    payment_method: str = Field(min_length=1, max_length=30)
+    items: list[SaleItemCreate] = Field(min_length=1, max_length=100)
 
 
 class SaleItemResponse(BaseModel):

@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.jwt import create_access_token
 from app.core.security import verify_password
+from app.core.security import normalize_phone
 from app.models.user import User
 
 
@@ -10,10 +11,11 @@ def authenticate_user(
     phone: str,
     password: str,
 ) -> User | None:
-    user = (
-        db.query(User)
-        .filter(User.phone == phone)
-        .first()
+    normalized_phone = normalize_phone(phone)
+    user = next(
+        (candidate for candidate in db.query(User).all()
+         if normalize_phone(candidate.phone) == normalized_phone),
+        None,
     )
 
     if user is None:

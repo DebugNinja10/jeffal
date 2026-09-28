@@ -16,6 +16,7 @@ from app.models.expense import Expense
 from app.models.debt import Debt
 from app.models.debt_payment import DebtPayment
 from app.models.conversation import Conversation
+from app.models.refresh_token import RefreshToken
 
 config = context.config
 

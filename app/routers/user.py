@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
+from app.auth.dependencies import get_current_user
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.services.user_service import (
     create_user,
@@ -51,8 +52,9 @@ def create_user_route(
 )
 def get_users_route(
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    return get_users(db)
+    return [current_user]
 
 
 @router.get(
@@ -62,7 +64,10 @@ def get_users_route(
 def get_user_route(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     user = get_user_by_id(
         db=db,
         user_id=user_id,
@@ -85,7 +90,10 @@ def update_user_route(
     user_id: int,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     try:
         user = update_user(
             db=db,
@@ -116,7 +124,10 @@ def update_user_route(
 def delete_user_route(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
+    if user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
     deleted = delete_user(
         db=db,
         user_id=user_id,

@@ -79,6 +79,9 @@ class ActionExecutor:
     ):
         period = understanding.data.get("period", "month")
 
+        if period not in {"day", "week", "month"}:
+            raise ValueError("Période de rapport invalide.")
+
         return get_business_activity_report(
             db=db,
             business_id=business_id,
