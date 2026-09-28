@@ -35,6 +35,10 @@ class StockQueryIntentData(BaseModel):
     product_name: str = Field(min_length=1)
 
 
+class ActivityReportIntentData(BaseModel):
+    period: str = "month"
+
+
 class AgentUnderstanding(BaseModel):
     intent: IntentName
     data: dict

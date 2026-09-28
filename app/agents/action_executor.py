@@ -5,6 +5,7 @@ from app.agents.schemas import AgentUnderstanding
 from app.schemas.debt import DebtCreate, DebtPaymentCreate
 from app.schemas.expense import ExpenseCreate
 from app.schemas.sale import SaleCreate, SaleItemCreate
+from app.services.activity_report_service import get_business_activity_report
 from app.services.debt_service import (
     add_debt_payment,
     create_debt,
@@ -58,9 +59,30 @@ class ActionExecutor:
                 understanding=understanding,
             )
 
+        if understanding.intent == IntentName.ANALYSER_ACTIVITE:
+            return self._execute_activity_report(
+                db=db,
+                business_id=business_id,
+                understanding=understanding,
+            )
+
         raise ValueError(
             f"Intent non supportée : "
             f"{understanding.intent}"
+        )
+
+    def _execute_activity_report(
+        self,
+        db: Session,
+        business_id: int,
+        understanding: AgentUnderstanding,
+    ):
+        period = understanding.data.get("period", "month")
+
+        return get_business_activity_report(
+            db=db,
+            business_id=business_id,
+            period=period,
         )
 
     def _execute_sale(
@@ -113,11 +135,18 @@ class ActionExecutor:
         return {
             "sale_id": sale.id,
             "business_id": sale.business_id,
+            "total_amount": float(sale.total_amount),
             "payment_method": sale.payment_method,
             "items": [
                 {
                     "product_id": item.product_id,
-                    "quantity": item.quantity,
+                    "product_name": item.product.name,
+                    "quantity": float(item.quantity),
+                    "unit": item.unit,
+                    "unit_price": float(item.unit_price),
+                    "subtotal": float(item.subtotal),
+                    "stock_remaining": float(item.product.stock_quantity),
+                    "stock_unit": item.product.base_unit or item.product.unit,
                 }
                 for item in sale.items
             ],

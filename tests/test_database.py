@@ -1,21 +1,30 @@
+from uuid import uuid4
+
 from app.database.connection import SessionLocal
 from app.models.user import User
 
 
-db = SessionLocal()
+def test_create_user():
+    db = SessionLocal()
 
-try:
-    user = User(
-        full_name="Test JËFAL",
-        phone="770000000",
-        preferred_language="wolof",
-    )
+    try:
+        phone = f"77{uuid4().int % 100000000:08d}"
 
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+        user = User(
+            full_name="Test JËFAL",
+            phone=phone,
+            preferred_language="wolof",
+            hashed_password="test_hash",
+        )
 
-    print(f"Utilisateur créé avec l'id : {user.id}")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
-finally:
-    db.close()
+        assert user.id is not None
+        assert user.full_name == "Test JËFAL"
+        assert user.phone == phone
+        assert user.preferred_language == "wolof"
+
+    finally:
+        db.close()

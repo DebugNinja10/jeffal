@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 
 from app.agents.action_executor import ActionExecutor
 from app.agents.agent_service import AgentService
-from app.agents.mock_intent_parser import MockIntentParser
+from app.agents.hybrid_intent_parser import HybridIntentParser
 from app.auth.dependencies import get_current_user
 from app.database.dependencies import get_db
 from app.models.user import User
 from app.services.asr_service import ASRService
+from app.services.activity_report_response_service import ActivityReportResponseService
 from app.services.business_service import get_user_business
 from app.services.tts_service import TTSService
 
@@ -31,11 +32,12 @@ router = APIRouter(
 asr_service = ASRService()
 
 agent_service = AgentService(
-    MockIntentParser()
+    HybridIntentParser()
 )
 
 action_executor = ActionExecutor()
 tts_service = TTSService()
+activity_report_response_service = ActivityReportResponseService()
 
 
 @router.post("/tts")
@@ -137,7 +139,38 @@ def execute_voice_agent(
             }
 
         # 5. Réponse
-        if (
+        # L'action peut elle-même demander une clarification
+        # (ex: produit inconnu). Dans ce cas, on transmet
+        # directement cette information au client vocal.
+        if isinstance(result, dict) and result.get("needs_clarification"):
+            reason = result.get("reason")
+
+            if reason == "product_not_found":
+                message = (
+                    f"Le produit « {result.get('product_name')} » "
+                    "n'existe pas encore dans vos produits."
+                )
+            else:
+                message = (
+                    "Une clarification est nécessaire "
+                    "avant de poursuivre."
+                )
+
+            return {
+                "text": text,
+                "intent": understanding.intent.value,
+                "confidence": understanding.confidence,
+                "needs_clarification": True,
+                "result": result,
+                "message": message,
+            }
+
+        if understanding.intent.value == "analyser_activite":
+            message = activity_report_response_service.build_response(
+                result
+            )
+
+        elif (
             understanding.intent.value
             == "consulter_stock"
         ):
