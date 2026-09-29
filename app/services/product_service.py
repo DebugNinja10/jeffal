@@ -49,6 +49,7 @@ def create_product(
     business_id: int,
     name: str,
     category: str | None,
+    item_type: str,
     unit: str,
     base_unit: str | None,
     package_size: float | None,
@@ -61,6 +62,7 @@ def create_product(
         business_id=business_id,
         name=name,
         category=category,
+        item_type=item_type,
         unit=unit,
         base_unit=base_unit,
         package_size=package_size,
@@ -179,6 +181,7 @@ def update_product(
     db: Session,
     product: Product,
     name: str | None = None,
+    item_type: str | None = None,
     category: str | None = None,
     unit: str | None = None,
     base_unit: str | None = None,
@@ -190,6 +193,9 @@ def update_product(
 
     if name is not None:
         product.name = name
+
+    if item_type is not None:
+        product.item_type = item_type
 
     if category is not None:
         product.category = category

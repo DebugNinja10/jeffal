@@ -22,6 +22,11 @@ UNIT_ALIASES = {
     "unités": "unité",
     "unite": "unité",
     "unites": "unité",
+
+    "prestation": "prestation",
+    "prestations": "prestation",
+    "service": "prestation",
+    "services": "prestation",
 }
 
 

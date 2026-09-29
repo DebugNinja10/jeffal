@@ -58,101 +58,118 @@ def create_sale(
 
         product = products_by_id[item.product_id]
 
-        # Normaliser les unités avant toute comparaison.
-        sold_unit = normalize_unit(item.unit)
-        product_unit = normalize_unit(product.unit)
-
-        base_unit = (
-            normalize_unit(product.base_unit)
-            if product.base_unit is not None
-            else None
-        )
-
         # --------------------------------------------------------
-        # Prix de vente
+        # Services : pas de stock à gérer.
         # --------------------------------------------------------
 
-        # Si l'unité vendue est l'unité commerciale
-        # du produit (ex: sac), on utilise le prix
-        # commercial du produit.
-        if sold_unit == product_unit:
+        if product.item_type == "service":
+
+            sold_unit = normalize_unit(item.unit)
+            product_unit = normalize_unit(product.unit)
+
+            if sold_unit != product_unit:
+                raise ValueError(
+                    f"Unité '{item.unit}' non compatible "
+                    f"avec le service '{product.name}'."
+                )
 
             unit_price = Decimal(
                 str(product.selling_price)
             )
 
-        # Si l'utilisateur vend directement dans
-        # l'unité de base (ex: kg), on calcule
-        # automatiquement le prix correspondant.
-        elif (
-            base_unit is not None
-            and sold_unit == base_unit
-        ):
+            stock_quantity = 0.0
 
-            if (
-                product.package_size is None
-                or product.package_size <= 0
+        else:
+
+            # Normaliser les unités avant toute comparaison.
+            sold_unit = normalize_unit(item.unit)
+            product_unit = normalize_unit(product.unit)
+
+            base_unit = (
+                normalize_unit(product.base_unit)
+                if product.base_unit is not None
+                else None
+            )
+
+            # ----------------------------------------------------
+            # Prix de vente du produit
+            # ----------------------------------------------------
+
+            if sold_unit == product_unit:
+
+                unit_price = Decimal(
+                    str(product.selling_price)
+                )
+
+            elif (
+                base_unit is not None
+                and sold_unit == base_unit
             ):
-                raise ValueError(
-                    f"Le produit '{product.name}' "
-                    f"n'a pas de package_size valide."
+
+                if (
+                    product.package_size is None
+                    or product.package_size <= 0
+                ):
+                    raise ValueError(
+                        f"Le produit '{product.name}' "
+                        f"n'a pas de package_size valide."
+                    )
+
+                unit_price = (
+                    Decimal(str(product.selling_price))
+                    / Decimal(str(product.package_size))
                 )
 
-            unit_price = (
-                Decimal(str(product.selling_price))
-                / Decimal(str(product.package_size))
-            )
+            else:
 
-        else:
-
-            raise ValueError(
-                f"Unité '{item.unit}' non compatible "
-                f"avec le produit '{product.name}'."
-            )
-
-        # --------------------------------------------------------
-        # Conversion vers l'unité de base du stock
-        # --------------------------------------------------------
-
-        if product.base_unit is None:
-
-            if sold_unit != product_unit:
                 raise ValueError(
-                    f"Le produit '{product.name}' "
-                    f"ne possède pas d'unité de base."
+                    f"Unité '{item.unit}' non compatible "
+                    f"avec le produit '{product.name}'."
                 )
 
-            stock_quantity = float(item.quantity)
+            # ----------------------------------------------------
+            # Conversion vers l'unité de base du stock
+            # ----------------------------------------------------
 
-        else:
+            if product.base_unit is None:
 
-            stock_quantity = convert_to_base_unit(
-                quantity=float(item.quantity),
-                sold_unit=sold_unit,
-                base_unit=base_unit,
-                package_size=(
-                    float(product.package_size)
-                    if product.package_size is not None
-                    else None
-                ),
-            )
+                if sold_unit != product_unit:
+                    raise ValueError(
+                        f"Le produit '{product.name}' "
+                        f"ne possède pas d'unité de base."
+                    )
 
-        # --------------------------------------------------------
-        # Vérification du stock
-        # --------------------------------------------------------
+                stock_quantity = float(item.quantity)
 
-        if stock_quantity > float(product.stock_quantity):
+            else:
 
-            raise ValueError(
-                f"Stock insuffisant pour "
-                f"'{product.name}'. "
-                f"Stock disponible : "
-                f"{product.stock_quantity} "
-                f"{product.base_unit or product.unit}. "
-                f"Quantité demandée : "
-                f"{stock_quantity} "
-                f"{product.base_unit or product.unit}."
-            )
+                stock_quantity = convert_to_base_unit(
+                    quantity=float(item.quantity),
+                    sold_unit=sold_unit,
+                    base_unit=base_unit,
+                    package_size=(
+                        float(product.package_size)
+                        if product.package_size is not None
+                        else None
+                    ),
+                )
+
+            # ----------------------------------------------------
+            # Vérification du stock
+            # ----------------------------------------------------
+
+            if stock_quantity > float(product.stock_quantity):
+
+                raise ValueError(
+                    f"Stock insuffisant pour "
+                    f"'{product.name}'. "
+                    f"Stock disponible : "
+                    f"{product.stock_quantity} "
+                    f"{product.base_unit or product.unit}. "
+                    f"Quantité demandée : "
+                    f"{stock_quantity} "
+                    f"{product.base_unit or product.unit}."
+                )
 
         # --------------------------------------------------------
         # Calcul du sous-total
@@ -210,11 +227,12 @@ def create_sale(
 
         db.add(sale_item)
 
-        # Le stock est toujours diminué
-        # dans l'unité de base.
-        product.stock_quantity -= Decimal(
-            str(stock_quantity)
-        )
+        # Le stock est diminué uniquement pour
+        # les produits physiques.
+        if product.item_type == "product":
+            product.stock_quantity -= Decimal(
+                str(stock_quantity)
+            )
 
         total_amount += subtotal
 

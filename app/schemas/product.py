@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class ProductCreate(BaseModel):
     name: str
+    item_type: str = "product"
     category: str | None = None
     unit: str
     base_unit: str | None = None
@@ -16,6 +17,7 @@ class ProductCreate(BaseModel):
 
 class ProductUpdate(BaseModel):
     name: str | None = None
+    item_type: str | None = None
     category: str | None = None
     unit: str | None = None
     base_unit: str | None = None
@@ -27,6 +29,7 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(BaseModel):
     id: int
+    item_type: str
     business_id: int
     name: str
     category: str | None

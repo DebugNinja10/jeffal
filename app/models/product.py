@@ -27,6 +27,16 @@ class Product(Base):
         nullable=True,
     )
 
+    # Type d'article :
+    # product = bien physique avec stock
+    # service = prestation sans stock
+    item_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="product",
+        server_default="product",
+    )
+
     # Unité actuellement utilisée par le produit.
     # Exemple : sac, bouteille, carton.
     unit: Mapped[str] = mapped_column(

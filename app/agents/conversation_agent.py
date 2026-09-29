@@ -39,6 +39,13 @@ class ConversationAgent:
                 normalized_message=normalized_message,
             )
 
+        if conversation.state == "waiting_item_type":
+            return self._handle_item_type(
+                db=db,
+                conversation=conversation,
+                normalized_message=normalized_message,
+            )
+
         if conversation.state == "waiting_product_purchase_price":
             return self._handle_product_purchase_price(
                 db=db,
@@ -48,6 +55,20 @@ class ConversationAgent:
 
         if conversation.state == "waiting_product_selling_price":
             return self._handle_product_selling_price(
+                db=db,
+                conversation=conversation,
+                normalized_message=normalized_message,
+            )
+
+        if conversation.state == "waiting_product_unit":
+            return self._handle_product_unit(
+                db=db,
+                conversation=conversation,
+                normalized_message=normalized_message,
+            )
+
+        if conversation.state == "waiting_product_base_unit":
+            return self._handle_product_base_unit(
                 db=db,
                 conversation=conversation,
                 normalized_message=normalized_message,
@@ -95,6 +116,8 @@ class ConversationAgent:
             "yes",
             "d'accord",
             "daccord",
+            "waaw",
+            "waaw.",
         }:
             missing_product = conversation.context.get(
                 "missing_product"
@@ -103,7 +126,7 @@ class ConversationAgent:
             update_conversation(
                 db=db,
                 conversation=conversation,
-                state="waiting_product_purchase_price",
+                state="waiting_item_type",
                 context={
                     **conversation.context,
                     "missing_product": missing_product,
@@ -114,12 +137,11 @@ class ConversationAgent:
                 "needs_clarification": True,
                 "result": {
                     "missing_product": missing_product,
-                    "step": "purchase_price",
+                    "step": "item_type",
                 },
                 "message": (
-                    f"D'accord. Ajoutons le produit "
-                    f"'{missing_product}'. "
-                    "Quel est son prix d'achat ?"
+                    f"D'accord. Ajoutons '{missing_product}'. "
+                    "Est-ce un produit ou un service ?"
                 ),
             }
 
@@ -143,6 +165,214 @@ class ConversationAgent:
             "message": "Répondez par oui ou non.",
         }
 
+    def _handle_item_type(
+        self,
+        db: Session,
+        conversation,
+        normalized_message: str,
+    ):
+        if normalized_message in {
+            "produit",
+            "product",
+        }:
+            context = {
+                **conversation.context,
+                "item_type": "product",
+            }
+
+            update_conversation(
+                db=db,
+                conversation=conversation,
+                state="waiting_product_purchase_price",
+                context=context,
+            )
+
+            missing_product = context.get("missing_product")
+
+            return {
+                "needs_clarification": True,
+                "result": {
+                    "missing_product": missing_product,
+                    "item_type": "product",
+                    "step": "purchase_price",
+                },
+                "message": (
+                    f"'{missing_product}' est enregistré comme produit. "
+                    "Quel est son prix d'achat ?"
+                ),
+            }
+
+        if normalized_message in {
+            "service",
+            "prestation",
+        }:
+            context = {
+                **conversation.context,
+                "item_type": "service",
+            }
+
+            update_conversation(
+                db=db,
+                conversation=conversation,
+                state="waiting_product_selling_price",
+                context=context,
+            )
+
+            missing_product = context.get("missing_product")
+
+            return {
+                "needs_clarification": True,
+                "result": {
+                    "missing_product": missing_product,
+                    "item_type": "service",
+                    "step": "selling_price",
+                },
+                "message": (
+                    f"'{missing_product}' est enregistré comme service. "
+                    "Quel est son prix de vente ?"
+                ),
+            }
+
+        return {
+            "needs_clarification": True,
+            "result": None,
+            "message": (
+                "Répondez simplement par « produit » "
+                "ou « service »."
+            ),
+        }
+
+    def _handle_product_unit(
+        self,
+        db: Session,
+        conversation,
+        normalized_message: str,
+    ):
+        from app.services.unit_service import normalize_unit
+
+        try:
+            unit = normalize_unit(normalized_message)
+        except (AttributeError, TypeError):
+            unit = ""
+
+        if not unit:
+            return {
+                "needs_clarification": True,
+                "result": None,
+                "message": (
+                    "Je n'ai pas compris l'unité. "
+                    "Exemples : kg, sac, bidon, litre ou unité."
+                ),
+            }
+
+        context = {
+            **conversation.context,
+            "unit": unit,
+        }
+
+        update_conversation(
+            db=db,
+            conversation=conversation,
+            state="waiting_product_base_unit",
+            context=context,
+        )
+
+        missing_product = context.get("missing_product")
+
+        return {
+            "needs_clarification": True,
+            "result": {
+                "missing_product": missing_product,
+                "unit": unit,
+                "step": "base_unit",
+            },
+            "message": (
+                f"Unité de vente enregistrée : {unit}. "
+                "Quelle est l'unité utilisée pour gérer le stock ?"
+            ),
+        }
+
+    def _handle_product_base_unit(
+        self,
+        db: Session,
+        conversation,
+        normalized_message: str,
+    ):
+        from app.services.unit_service import normalize_unit
+
+        try:
+            base_unit = normalize_unit(normalized_message)
+        except (AttributeError, TypeError):
+            base_unit = ""
+
+        if not base_unit:
+            return {
+                "needs_clarification": True,
+                "result": None,
+                "message": (
+                    "Je n'ai pas compris l'unité de stock. "
+                    "Exemples : kg, sac, bidon, litre ou unité."
+                ),
+            }
+
+        context = {
+            **conversation.context,
+            "base_unit": base_unit,
+        }
+
+        unit = normalize_unit(context.get("unit", ""))
+
+        if unit == base_unit:
+            context["package_size"] = None
+
+            update_conversation(
+                db=db,
+                conversation=conversation,
+                state="waiting_product_initial_stock",
+                context=context,
+            )
+
+            missing_product = context.get("missing_product")
+
+            return {
+                "needs_clarification": True,
+                "result": {
+                    "missing_product": missing_product,
+                    "unit": unit,
+                    "base_unit": base_unit,
+                    "package_size": None,
+                    "step": "initial_stock",
+                },
+                "message": (
+                    f"Les unités sont identiques ({base_unit}). "
+                    "Combien en avez-vous actuellement en stock ?"
+                ),
+            }
+
+        update_conversation(
+            db=db,
+            conversation=conversation,
+            state="waiting_product_package_size",
+            context=context,
+        )
+
+        missing_product = context.get("missing_product")
+
+        return {
+            "needs_clarification": True,
+            "result": {
+                "missing_product": missing_product,
+                "unit": unit,
+                "base_unit": base_unit,
+                "step": "package_size",
+            },
+            "message": (
+                f"Unité de vente : {unit}. "
+                f"Unité de stock : {base_unit}. "
+                f"Quelle quantité de {base_unit} contient un {unit} ?"
+            ),
+        }
+
     def _handle_product_ready_to_create(
         self,
         db: Session,
@@ -152,21 +382,24 @@ class ConversationAgent:
         context = conversation.context
 
         missing_product = context.get("missing_product")
+        item_type = context.get("item_type", "product")
         purchase_price = context.get("purchase_price")
         selling_price = context.get("selling_price")
+        unit = context.get("unit")
+        base_unit = context.get("base_unit")
         package_size = context.get("package_size")
         initial_stock = context.get("initial_stock")
 
-        if not all(
-            value is not None
-            for value in (
-                missing_product,
-                purchase_price,
-                selling_price,
-                package_size,
-                initial_stock,
-            )
-        ):
+        required_values = (
+            missing_product,
+            item_type,
+            selling_price,
+            unit,
+            base_unit,
+            initial_stock,
+        )
+
+        if any(value is None for value in required_values):
             update_conversation(
                 db=db,
                 conversation=conversation,
@@ -183,7 +416,45 @@ class ConversationAgent:
                 ),
             }
 
-        base_stock = initial_stock * package_size
+        if item_type == "product" and purchase_price is None:
+            update_conversation(
+                db=db,
+                conversation=conversation,
+                state="idle",
+                context={},
+            )
+
+            return {
+                "needs_clarification": True,
+                "result": None,
+                "message": (
+                    "Il manque le prix d'achat du produit. "
+                    "Veuillez recommencer l'opération."
+                ),
+            }
+
+        if unit == base_unit:
+            base_stock = initial_stock
+            package_size = None
+        else:
+            if package_size is None:
+                update_conversation(
+                    db=db,
+                    conversation=conversation,
+                    state="idle",
+                    context={},
+                )
+
+                return {
+                    "needs_clarification": True,
+                    "result": None,
+                    "message": (
+                        "Il manque la quantité du conditionnement "
+                        "pour convertir le stock."
+                    ),
+                }
+
+            base_stock = initial_stock * package_size
 
         existing_product = find_business_product_by_name(
             db=db,
@@ -199,7 +470,7 @@ class ConversationAgent:
                     "product_name": existing_product.name,
                 },
                 "message": (
-                    f"Le produit '{missing_product}' existe déjà."
+                    f"L'article '{missing_product}' existe déjà."
                 ),
             }
 
@@ -208,10 +479,13 @@ class ConversationAgent:
             business_id=business_id,
             name=missing_product,
             category=None,
-            unit="bidon",
-            base_unit="litre",
+            item_type=item_type,
+            unit=unit,
+            base_unit=base_unit,
             package_size=package_size,
-            purchase_price=purchase_price,
+            purchase_price=(
+                purchase_price if purchase_price is not None else 0
+            ),
             selling_price=selling_price,
             stock_quantity=base_stock,
         )
@@ -224,6 +498,7 @@ class ConversationAgent:
                 **context,
                 "product_id": product.id,
                 "base_stock": base_stock,
+                "package_size": package_size,
             },
         )
 
@@ -232,16 +507,21 @@ class ConversationAgent:
             "result": {
                 "product_id": product.id,
                 "product_name": product.name,
+                "item_type": product.item_type,
                 "unit": product.unit,
                 "base_unit": product.base_unit,
-                "package_size": float(product.package_size),
+                "package_size": (
+                    float(product.package_size)
+                    if product.package_size is not None
+                    else None
+                ),
                 "initial_stock": initial_stock,
                 "base_stock": base_stock,
             },
             "message": (
-                f"Produit '{product.name}' créé avec "
-                f"{initial_stock:g} bidons en stock. "
-                "La vente en attente peut maintenant être reprise."
+                f"Article '{product.name}' créé avec "
+                f"{initial_stock:g} {unit} en stock."
+                " La vente en attente peut maintenant être reprise."
             ),
         }
 
@@ -321,16 +601,39 @@ class ConversationAgent:
         normalized_message: str,
     ):
         try:
-            initial_stock = float(
-                normalized_message.replace(",", ".")
-            )
+            value = normalized_message.strip().lower().replace(",", ".")
+            unit = conversation.context.get("unit", "")
+
+            for suffix in (
+                "prestations",
+                "prestation",
+                "unités",
+                "unité",
+                "unites",
+                "unite",
+                "sacs",
+                "sac",
+                "bidons",
+                "bidon",
+                "kilos",
+                "kilo",
+                "kg",
+                "litres",
+                "litre",
+                "l",
+            ):
+                if value.endswith(suffix):
+                    value = value[:-len(suffix)].strip()
+                    break
+
+            initial_stock = float(value)
         except ValueError:
             return {
                 "needs_clarification": True,
                 "result": None,
                 "message": (
-                    "Je n'ai pas compris la quantité. "
-                    "Donnez-moi uniquement le nombre de bidons, "
+                    f"Je n'ai pas compris la quantité. "
+                    f"Donnez-moi uniquement le nombre de {unit or 'unités'}, "
                     "par exemple : 10."
                 ),
             }
@@ -362,8 +665,11 @@ class ConversationAgent:
             "needs_clarification": False,
             "result": {
                 "missing_product": missing_product,
+                "item_type": context.get("item_type", "product"),
                 "purchase_price": context.get("purchase_price"),
                 "selling_price": context.get("selling_price"),
+                "unit": context.get("unit"),
+                "base_unit": context.get("base_unit"),
                 "package_size": context.get("package_size"),
                 "initial_stock": initial_stock,
                 "step": "ready_to_create",
@@ -382,16 +688,38 @@ class ConversationAgent:
     ):
         try:
             value = normalized_message.strip().lower().replace(",", ".")
-            value = value.removesuffix("litres").removesuffix("litre").removesuffix("l").strip()
+            unit = conversation.context.get("unit", "")
+            base_unit = conversation.context.get("base_unit", "")
+
+            for suffix in (
+                "prestations",
+                "prestation",
+                "unités",
+                "unites",
+                "sacs",
+                "sac",
+                "bidons",
+                "bidon",
+                "kilos",
+                "kilo",
+                "kg",
+                "litres",
+                "litre",
+                "l",
+            ):
+                if value.endswith(suffix):
+                    value = value[:-len(suffix)].strip()
+                    break
+
             package_size = float(value)
         except ValueError:
             return {
                 "needs_clarification": True,
                 "result": None,
                 "message": (
-                    "Je n'ai pas compris la contenance. "
-                    "Donnez-moi uniquement le nombre de litres, "
-                    "par exemple : 20."
+                    f"Je n'ai pas compris la quantité. "
+                    f"Donnez-moi uniquement le nombre de {base_unit or 'unités'}, "
+                    "par exemple : 25."
                 ),
             }
 
@@ -400,7 +728,8 @@ class ConversationAgent:
                 "needs_clarification": True,
                 "result": None,
                 "message": (
-                    "La contenance doit être supérieure à zéro."
+                    "La quantité du conditionnement doit être "
+                    "supérieure à zéro."
                 ),
             }
 
@@ -422,13 +751,15 @@ class ConversationAgent:
             "needs_clarification": True,
             "result": {
                 "missing_product": missing_product,
+                "unit": unit,
+                "base_unit": base_unit,
                 "package_size": package_size,
                 "step": "initial_stock",
             },
             "message": (
-                f"Contenance enregistrée : "
-                f"{package_size:g} litres par bidon. "
-                "Combien de bidons avez-vous actuellement en stock ?"
+                f"Conditionnement enregistré : "
+                f"un {unit} contient {package_size:g} {base_unit}. "
+                f"Combien de {unit} avez-vous actuellement en stock ?"
             ),
         }
 
@@ -467,10 +798,77 @@ class ConversationAgent:
             "selling_price": selling_price,
         }
 
+        if context.get("item_type") == "service":
+            missing_product = context.get("missing_product")
+
+            existing_product = find_business_product_by_name(
+                db=db,
+                product_name=missing_product,
+                business_id=conversation.business_id,
+            )
+
+            if existing_product is not None:
+                update_conversation(
+                    db=db,
+                    conversation=conversation,
+                    state="idle",
+                    context={},
+                )
+
+                return {
+                    "needs_clarification": True,
+                    "result": {
+                        "product_id": existing_product.id,
+                        "product_name": existing_product.name,
+                    },
+                    "message": (
+                        f"L'article '{missing_product}' existe déjà."
+                    ),
+                }
+
+            service = create_product(
+                db=db,
+                business_id=conversation.business_id,
+                name=missing_product,
+                category=None,
+                item_type="service",
+                unit="prestation",
+                base_unit="prestation",
+                package_size=None,
+                purchase_price=0,
+                selling_price=selling_price,
+                stock_quantity=0,
+            )
+
+            update_conversation(
+                db=db,
+                conversation=conversation,
+                state="product_created",
+                context={
+                    **context,
+                    "product_id": service.id,
+                },
+            )
+
+            return {
+                "needs_clarification": False,
+                "result": {
+                    "product_id": service.id,
+                    "product_name": service.name,
+                    "item_type": service.item_type,
+                    "unit": service.unit,
+                    "selling_price": float(service.selling_price),
+                },
+                "message": (
+                    f"Service '{service.name}' créé avec succès. "
+                    "La vente en attente peut maintenant être reprise."
+                ),
+            }
+
         update_conversation(
             db=db,
             conversation=conversation,
-            state="waiting_product_package_size",
+            state="waiting_product_unit",
             context=context,
         )
 
@@ -482,12 +880,13 @@ class ConversationAgent:
                 "missing_product": missing_product,
                 "purchase_price": context.get("purchase_price"),
                 "selling_price": selling_price,
-                "step": "package_size",
+                "step": "unit",
             },
             "message": (
                 f"Prix de vente enregistré : "
                 f"{selling_price:g} FCFA. "
-                "Combien de litres contient un bidon ?"
+                "Quelle unité utilisez-vous pour vendre ? "
+                "Par exemple : kg, sac, bidon, litre ou unité."
             ),
         }
 
