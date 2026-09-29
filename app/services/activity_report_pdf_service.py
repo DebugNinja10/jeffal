@@ -1,4 +1,5 @@
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -33,7 +34,7 @@ def generate_activity_report_pdf(
 
     story.append(
         Paragraph(
-            f"<b>{business.name}</b>",
+            f"<b>{escape(business.name)}</b>",
             styles["Title"],
         )
     )
@@ -57,7 +58,7 @@ def generate_activity_report_pdf(
 
     story.append(
         Paragraph(
-            report["period_label"],
+            escape(report["period_label"]),
             styles["Normal"],
         )
     )
@@ -244,7 +245,7 @@ def generate_activity_report_pdf(
     if low_stock:
         low_stock_text = (
             "<b>Alertes stock :</b> "
-            + ", ".join(low_stock)
+            + ", ".join(escape(item) for item in low_stock)
         )
     else:
         low_stock_text = (
@@ -264,7 +265,7 @@ def generate_activity_report_pdf(
     story.append(
         Paragraph(
             f"Document généré par JËFAL — "
-            f"{business.name}",
+            f"{escape(business.name)}",
             styles["Normal"],
         )
     )

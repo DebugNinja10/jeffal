@@ -1,5 +1,7 @@
 # Variables d'environnement
 .env
+.env.*
+!.env.example
 
 # Environnement virtuel
 .venv/
@@ -33,3 +35,6 @@ tts_service/__pycache__/
 # Fichiers de sauvegarde
 *.bak
 *.backup
+
+# Sauvegardes locales
+backups/

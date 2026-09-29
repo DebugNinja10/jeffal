@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password
+from app.core.security import encrypt_phone, hash_password
 from app.models.user import User
 
 
@@ -16,7 +16,7 @@ def create_user(
 
     user = User(
         full_name=full_name,
-        phone=phone,
+        phone_encrypted=encrypt_phone(phone),
         preferred_language=preferred_language,
         hashed_password=hashed_password,
     )
@@ -70,7 +70,7 @@ def update_user(
         user.full_name = full_name
 
     if phone is not None:
-        user.phone = phone
+        user.phone_encrypted = encrypt_phone(phone)
 
     if preferred_language is not None:
         user.preferred_language = preferred_language

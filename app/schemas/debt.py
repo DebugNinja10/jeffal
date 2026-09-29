@@ -6,13 +6,13 @@ from pydantic import BaseModel, ConfigDict, Field
 class DebtCreate(BaseModel):
     customer_name: str = Field(min_length=1, max_length=150)
     amount: float = Field(gt=0)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=500)
     due_date: datetime | None = None
 
 
 class DebtPaymentCreate(BaseModel):
     amount: float = Field(gt=0)
-    note: str | None = None
+    note: str | None = Field(default=None, max_length=500)
     paid_at: datetime | None = None
 
 

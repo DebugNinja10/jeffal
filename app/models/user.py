@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
+from app.core.security import decrypt_phone, encrypt_phone
 
 
 class User(Base):
@@ -17,18 +18,16 @@ class User(Base):
         String(150)
     )
 
-    phone: Mapped[str] = mapped_column(
-        String(30),
-        unique=True,
-    )
+    phone_encrypted: Mapped[str] = mapped_column(String(255), nullable=False)
 
     preferred_language: Mapped[str] = mapped_column(
         String(20),
         default="wolof",
     )
 
-    hashed_password: Mapped[str] = mapped_column(
+    hashed_password: Mapped[str | None] = mapped_column(
         String(255),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -41,3 +40,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def phone(self) -> str:
+        return decrypt_phone(self.phone_encrypted)
+
+    @phone.setter
+    def phone(self, value: str) -> None:
+        self.phone_encrypted = encrypt_phone(value)

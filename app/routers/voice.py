@@ -21,6 +21,7 @@ from app.services.asr_service import ASRService
 from app.services.activity_report_response_service import ActivityReportResponseService
 from app.services.business_service import get_user_business
 from app.services.tts_service import TTSService
+from app.core.config import settings
 
 
 router = APIRouter(
@@ -41,10 +42,12 @@ activity_report_response_service = ActivityReportResponseService()
 
 
 @router.post("/tts")
-def voice_tts(text: str):
+def voice_tts(text: str, current_user: User = Depends(get_current_user)):
     text = text.strip().lower()
     if not text:
         raise HTTPException(status_code=422, detail="Le texte ne peut pas être vide.")
+    if len(text) > settings.MAX_TTS_TEXT_LENGTH:
+        raise HTTPException(status_code=413, detail="Texte trop long.")
     audio = tts_service.synthesize(text)
     from fastapi.responses import Response
     return Response(content=audio, media_type="audio/wav", headers={"Content-Disposition": 'inline; filename="response.wav"'})
@@ -75,9 +78,9 @@ def execute_voice_agent(
 
     try:
         # Créer un fichier temporaire.
-        suffix = os.path.splitext(
-            audio.filename or ""
-        )[1] or ".wav"
+        if audio.content_type not in {"audio/wav", "audio/x-wav", "audio/mpeg", "audio/ogg", "audio/webm"}:
+            raise HTTPException(status_code=415, detail="Type audio non supporté.")
+        suffix = ".wav"
 
         with tempfile.NamedTemporaryFile(
             delete=False,
@@ -86,9 +89,12 @@ def execute_voice_agent(
 
             temp_path = temp_file.name
 
-            content = audio.file.read()
-
-            temp_file.write(content)
+            total_size = 0
+            while chunk := audio.file.read(1024 * 1024):
+                total_size += len(chunk)
+                if total_size > settings.MAX_AUDIO_SIZE_BYTES:
+                    raise HTTPException(status_code=413, detail="Fichier audio trop volumineux.")
+                temp_file.write(chunk)
 
         # 1. Audio -> texte
         text = asr_service.transcribe(
@@ -102,6 +108,9 @@ def execute_voice_agent(
             )
 
         # 2. Texte -> compréhension
+        if len(text) > settings.MAX_AGENT_MESSAGE_LENGTH:
+            raise HTTPException(status_code=413, detail="Message vocal trop long.")
+
         understanding = agent_service.understand(
             text
         )
